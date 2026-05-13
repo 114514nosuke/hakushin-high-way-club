@@ -12,7 +12,7 @@
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;overflow:hidden;background:#111;font-family:sans-serif;touch-action:none;overscroll-behavior:none;}
-#gameWrap{position:fixed;inset:0;overflow:auto;background:#111;display:flex;align-items:flex-start;justify-content:center;}
+#gameWrap{position:fixed;left:0;right:0;top:0;bottom:0;overflow:auto;background:#111;display:flex;align-items:flex-start;justify-content:center;}
 canvas{display:block;background:#333;transform-origin:top center;}
 #ui{position:fixed;top:10px;left:10px;color:white;font-size:24px;z-index:5;text-shadow:2px 2px 4px #000;pointer-events:none;}
 .screen{position:fixed;inset:0;background:rgba(0,0,0,.90);display:flex;flex-direction:column;justify-content:center;align-items:center;color:white;z-index:20;padding:20px;text-align:center;overflow:auto;}
@@ -29,12 +29,12 @@ a{color:#8fd3ff;}
 #titleBox{max-width:820px;line-height:1.55;font-size:15px;color:#ddd;margin:10px auto 8px;border:1px solid #555;padding:14px;background:rgba(255,255,255,.05);text-align:left;}
 #titleBox strong{color:#fff;}
 #thanks{font-size:13px;color:#bbb;margin-top:10px;line-height:1.5;}
-#touchControls{position:fixed;inset:0;z-index:8;display:none;pointer-events:none;}
-.touchBtn{position:absolute;background:rgba(120,0,0,.16);border:2px solid rgba(255,255,255,.18);color:rgba(255,255,255,.5);font-size:46px;font-weight:bold;display:flex;align-items:center;justify-content:center;pointer-events:auto;user-select:none;}
-#touchLeft{left:0;top:0;width:50%;height:100%;}
-#touchRight{right:0;top:0;width:50%;height:100%;}
-#touchUp{left:0;top:0;width:100%;height:50%;display:none;}
-#touchDown{left:0;bottom:0;width:100%;height:50%;display:none;}
+#touchControls{position:fixed;left:0;right:0;bottom:0;height:118px;z-index:18;display:none;pointer-events:none;background:rgba(0,0,0,.55);border-top:1px solid rgba(255,255,255,.18);}
+.touchBtn{position:absolute;background:rgba(120,0,0,.42);border:2px solid rgba(255,255,255,.32);color:rgba(255,255,255,.82);font-size:42px;font-weight:bold;display:flex;align-items:center;justify-content:center;pointer-events:auto;user-select:none;border-radius:14px;}
+#touchLeft{left:18px;bottom:18px;width:42%;height:82px;}
+#touchRight{right:18px;bottom:18px;width:42%;height:82px;}
+#touchUp{left:18px;bottom:18px;width:42%;height:82px;display:none;}
+#touchDown{right:18px;bottom:18px;width:42%;height:82px;display:none;}
 @media(max-width:700px){
   #ui{font-size:16px;}
   h1{font-size:28px;margin:8px 0;}
@@ -44,6 +44,7 @@ a{color:#8fd3ff;}
   .flash{font-size:38px;}
   #thanks{font-size:11px;}
   #touchControls{display:block;}
+  #gameWrap{bottom:118px;}
 }
 </style>
 </head>
@@ -148,9 +149,7 @@ function isMobile(){return window.innerWidth<700 || 'ontouchstart' in window;}
 function unlockAudio(){
   if(audioUnlocked)return;
   audioUnlocked=true;
-  [titleBgm,stageBgm,warningSound,nearMissVoice,crashSound,tnokVoice,tnokCrash].forEach(a=>{
-    try{a.play().then(()=>{a.pause();a.currentTime=0;}).catch(()=>{});}catch(e){}
-  });
+  // iPhone対策：アンロック時にSEを一斉再生しない。遅延再生暴発を防ぐ。
   if(!gameRunning && !document.getElementById('startScreen').classList.contains('hidden')) playTitleBgm();
 }
 ['pointerdown','touchstart','mousedown','keydown'].forEach(ev=>window.addEventListener(ev,unlockAudio,{once:false,passive:false}));
@@ -162,7 +161,9 @@ function setCanvasSize(){
   fitCanvasToScreen();
 }
 function fitCanvasToScreen(){
-  const scale=Math.min(window.innerWidth/canvas.width,window.innerHeight/canvas.height,1);
+  const controlH = isMobile() ? 118 : 0;
+  const availableH = Math.max(320, window.innerHeight - controlH);
+  const scale = Math.min(window.innerWidth/canvas.width, availableH/canvas.height, 1);
   canvas.style.width=(canvas.width*scale)+'px';
   canvas.style.height=(canvas.height*scale)+'px';
 }
@@ -243,8 +244,16 @@ function updateTouchControls(){
     touchLeft.style.display='none';touchRight.style.display='none';touchUp.style.display='flex';touchDown.style.display='flex';
   }
 }
+let lastTouchMoveAt = 0;
 function bindTouch(el,delta){
-  ['pointerdown','touchstart'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();unlockAudio();movePlayerLane(delta);},{passive:false}));
+  el.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    unlockAudio();
+    const now = Date.now();
+    if(now - lastTouchMoveAt < 120) return;
+    lastTouchMoveAt = now;
+    movePlayerLane(delta);
+  },{passive:false});
 }
 bindTouch(touchLeft,-1);bindTouch(touchRight,1);bindTouch(touchUp,-1);bindTouch(touchDown,1);
 window.addEventListener('keydown',e=>{
@@ -253,9 +262,17 @@ window.addEventListener('keydown',e=>{
   else{if(e.key==='ArrowUp')movePlayerLane(-1);if(e.key==='ArrowDown')movePlayerLane(1);}
 },{passive:false});
 
+function playOneShot(audio){
+  if(!audioUnlocked) return;
+  try{
+    audio.pause();
+    audio.currentTime = 0;
+    audio.play().catch(()=>{});
+  }catch(e){}
+}
 function triggerBossWarning(){
   bossLane=Math.floor(Math.random()*laneCount);bossState='warning';bossTimer=180;bossWarningTextShown=false;
-  try{warningSound.currentTime=0;warningSound.play().catch(()=>{});}catch(e){}
+  playOneShot(warningSound);
 }
 function spawnBoss(){
   const d=DIFF[difficulty];
@@ -326,12 +343,12 @@ function bossSmash(car,boss){
   playTnokCrash();showText('理不尽事故発生','orange',800);
 }
 function spinCrash(car,power){car.spin=true;car.braking=true;slowMoTimer=Math.max(slowMoTimer,18);car.spinVel=(Math.random()-.5)*7*power;if(isVertical())car.vx=(Math.random()-.5)*80*power;else car.vy=(Math.random()-.5)*80*power;car.speed*=1.18;}
-function playTnokCrash(){try{tnokCrash.currentTime=0;tnokCrash.play().catch(()=>{});}catch(e){}}
+function playTnokCrash(){playOneShot(tnokCrash);}
 function handlePlayerCollisions(){
   enemies.forEach(e=>{
     const dx=Math.abs((player.x+player.width/2)-(e.x+e.width/2)),dy=Math.abs((player.y+player.height/2)-(e.y+e.height/2));
     if(dx<(player.width*.30+e.width*.30)&&dy<(player.height*.32+e.height*.32))gameOver();
-    const dist=Math.sqrt(dx*dx+dy*dy);if(dist>120&&dist<170&&nearMissCooldown<=0){score+=114514;nearMissCooldown=40;showText('やりますねぇ！','yellow',700);try{nearMissVoice.currentTime=0;nearMissVoice.play().catch(()=>{});}catch(err){}}
+    const dist=Math.sqrt(dx*dx+dy*dy);if(dist>120&&dist<170&&nearMissCooldown<=0){score+=114514;nearMissCooldown=40;showText('やりますねぇ！','yellow',700);playOneShot(nearMissVoice)}
   });
 }
 function drawRoad(){
@@ -369,7 +386,9 @@ function saveBestScoreIfNeeded(finalScore){const best=loadBestScore();if(finalSc
 function updateBestDisplay(){if(bestInfo)bestInfo.textContent=fmt(loadBestScore());}
 function shareToX(){
   const r=lastResult||{score,best:loadBestScore(),isNewBest:false,mode:getModeLabel()};
-  const text=`迫真高速道路部で${fmt(r.score)}点を記録！${r.isNewBest?' 自己ベスト更新！':''}\n難易度/ステージ：${r.mode}\n#迫真高速道路部`;
+  const text=`迫真高速道路部で${fmt(r.score)}点を記録！${r.isNewBest?' 自己ベスト更新！':''}
+難易度/ステージ：${r.mode}
+#迫真高速道路部`;
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
 }
 function showText(text,color,duration=1200){
@@ -379,8 +398,8 @@ function showText(text,color,duration=1200){
 }
 function gameOver(){
   if(!gameRunning)return;gameRunning=false;stopStageBgm();showText('おいゴルァ！','red',1800);document.body.style.background='#500';
-  try{crashSound.currentTime=0;crashSound.play().catch(()=>{});}catch(e){}
-  setTimeout(()=>{try{tnokVoice.currentTime=0;tnokVoice.play().catch(()=>{});}catch(e){}},1200);
+  playOneShot(crashSound)
+  setTimeout(()=>{playOneShot(tnokVoice);},1200);
   setTimeout(()=>{canvas.style.filter='brightness(.1)';},1000);
   setTimeout(()=>{
     const isNewBest=saveBestScoreIfNeeded(score),best=loadBestScore();lastResult={score,best,isNewBest,mode:getModeLabel()};updateBestDisplay();
