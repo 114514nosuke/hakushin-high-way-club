@@ -30,7 +30,7 @@ a{color:#8fd3ff;}
 #titleBox strong{color:#fff;}
 #thanks{font-size:13px;color:#bbb;margin-top:10px;line-height:1.5;}
 #touchControls{position:fixed;left:0;right:0;bottom:0;height:118px;z-index:18;display:none;pointer-events:none;background:rgba(0,0,0,.55);border-top:1px solid rgba(255,255,255,.18);}
-.touchBtn{position:absolute;background:rgba(120,0,0,.42);border:2px solid rgba(255,255,255,.32);color:rgba(255,255,255,.82);font-size:42px;font-weight:bold;display:flex;align-items:center;justify-content:center;pointer-events:auto;user-select:none;border-radius:14px;}
+.touchBtn{position:absolute;background:rgba(120,0,0,.42);border:2px solid rgba(255,255,255,.32);color:rgba(255,255,255,.82);font-size:42px;font-weight:bold;display:flex;align-items:center;justify-content:center;pointer-events:auto;user-select:none;-webkit-user-select:none;touch-action:none;border-radius:14px;}
 #touchLeft{left:18px;bottom:18px;width:42%;height:82px;}
 #touchRight{right:18px;bottom:18px;width:42%;height:82px;}
 #touchUp{left:18px;bottom:18px;width:42%;height:82px;display:none;}
@@ -131,6 +131,7 @@ const nearMissVoice=new Audio('yarimasunee.mp3'); nearMissVoice.volume=.9;
 
 let audioUnlocked=false;
 let gameRunning=false,score=0,laneCount=3,enemies=[],roadOffset=0,nearMissCooldown=0,slowMoTimer=0;
+let justOpenedLane=false;
 let bossState='none',bossLane=0,bossTimer=0,bossClearedForLane={3:false,4:false,5:false};
 let lastSixLaneBossScore=0,bossWarningTextShown=false;
 let stageMode='vertical',difficulty='normal',lastResult=null,flashStack=0;
@@ -168,6 +169,8 @@ function fitCanvasToScreen(){
   canvas.style.height=(canvas.height*scale)+'px';
 }
 window.addEventListener('resize',()=>{fitCanvasToScreen();});
+window.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
+window.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});
 function laneWidth(){return (isVertical()?canvas.width:canvas.height)/laneCount;}
 function laneCenter(lane){return lane*laneWidth()+laneWidth()/2;}
 function resetPlayer(){
@@ -311,11 +314,25 @@ function update(){
     else if(!e.boss){if(isVertical())e.x+=(laneCenter(e.lane)-e.width/2-e.x)*.08;else e.y+=(laneCenter(e.lane)-e.height/2-e.y)*.08;}
   });
   handleEnemyCollisions();handlePlayerCollisions();
+  justOpenedLane=false;
   enemies=enemies.filter(e=>{
     const bossGone=e.boss&&(isVertical()?e.y>canvas.height+700:e.x<-700);
-    if(bossGone){if(laneCount<6){bossClearedForLane[laneCount]=true;laneCount++;setCanvasSize();resetLanesAfterLaneChange();showText(`LANE ${laneCount} OPEN`,'cyan',1500);}bossState='none';return false;}
+    if(bossGone){
+      if(laneCount<6){
+        bossClearedForLane[laneCount]=true;
+        laneCount++;
+        setCanvasSize();
+        resetLanesAfterLaneChange();
+        justOpenedLane=true;
+        showText(`LANE ${laneCount} OPEN`,'cyan',1500);
+      }
+      bossState='none';
+      return false;
+    }
+    if(justOpenedLane) return false;
     return isVertical()?(e.y<canvas.height+700&&e.x>-500&&e.x<canvas.width+500):(e.x>-700&&e.y>-500&&e.y<canvas.height+500);
   });
+  if(justOpenedLane) enemies=[];
   scoreText.textContent=fmt(score);laneInfo.textContent=laneCount;modeInfo.textContent=isVertical()?'縦':'横';updateBestDisplay();
 }
 function applyWhiteLinePenalty(){
@@ -386,8 +403,10 @@ function saveBestScoreIfNeeded(finalScore){const best=loadBestScore();if(finalSc
 function updateBestDisplay(){if(bestInfo)bestInfo.textContent=fmt(loadBestScore());}
 function shareToX(){
   const r=lastResult||{score,best:loadBestScore(),isNewBest:false,mode:getModeLabel()};
+  const gameUrl='https://114514nosuke.github.io/hakushin-high-way-club/';
   const text=`迫真高速道路部で${fmt(r.score)}点を記録！${r.isNewBest?' 自己ベスト更新！':''}
 難易度/ステージ：${r.mode}
+挑戦はこちら：${gameUrl}
 #迫真高速道路部`;
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
 }
@@ -413,18 +432,3 @@ function loop(){if(gameRunning){update();draw();}requestAnimationFrame(loop);}lo
 </html>
 ```
 
-## 今後追加すると面白いもの
-
-* 実写画像化（センチュリー画像差し替え）
-* 横スクロールステージ
-* 谷岡ボイスSE
-* 雨ステージ
-* 夜の首都高
-* VHSノイズ
-* バックミラーHUD
-* ニアミスボーナス
-* タイトル画面BGM
-* ボス車両（超高速黒塗り）
-* プレイヤー車種変更
-* ランキング
-* スマホ操作対応
