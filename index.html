@@ -419,7 +419,7 @@ function shareToX(){
   const text=`迫真高速道路部で${fmt(r.score)}点を記録！${r.isNewBest?' 自己ベスト更新！':''}
 難易度/ステージ：${r.mode}
 挑戦はこちら：${gameUrl}
-#迫真高速道路部`;
+#迫真高速道路部 #野獣先輩`;
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
 }
 function showText(text,color,duration=1200){
